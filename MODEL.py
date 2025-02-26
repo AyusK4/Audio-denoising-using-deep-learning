@@ -883,9 +883,19 @@ Final_Outputaudio = torch.cat(outputensor, dim=0)
 # Reshape to 2D tensor: (1, num_samples)
 Final_Outputaudio = Final_Outputaudio.unsqueeze(0)
 
+
+# Check if denoised file is longer than noisy file
+if Final_Outputaudio.size(1) > input_audio.size(1):
+    # Crop the denoised file to the same length as the noisy file
+    Final_Outputaudio = Final_Outputaudio[:, :input_audio.size(1)]
+    print("Denoised file cropped to match the noisy file length.")
+else:
+    print("Denoised file is already the same length or shorter than the noisy file.")
+
+
+
 # Save the audio as a 2D tensor (1 channel)
 torchaudio.save("Samples/denoised.wav", Final_Outputaudio, 48000, bits_per_sample=16)
-
 
 
 
