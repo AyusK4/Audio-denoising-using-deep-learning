@@ -1,6 +1,7 @@
 noise_class = "white" 
 training_type =  "Noise2Noise" 
 
+
 from pathlib import Path
 
 if noise_class == "white": 
@@ -27,7 +28,7 @@ else:
         raise Exception("Enter valid training type")
 
     TEST_NOISY_DIR = Path('Datasets/US_Class'+str(noise_class)+'_Test_Input')
-    TEST_CLEAN_DIR = Path('Datasets/clean_testset_wav')
+    TEST_CLEAN_DIR = Path('Datasets/clean_testset_wav') 
 
 import os
 basepath = str(noise_class)+"_"+training_type
@@ -57,11 +58,8 @@ from matplotlib import colors, pyplot as plt
 from pypesq import pesq
 from IPython.display import clear_output
 
-#%matplotlib inline
-
-# not everything is smooth in sklearn, to conveniently output images in colab
-# we will ignore warnings
 warnings.filterwarnings(action='ignore', category=DeprecationWarning)
+
 
 np.random.seed(999)
 torch.manual_seed(999)
@@ -69,6 +67,7 @@ torch.manual_seed(999)
 # If running on Cuda set these 2 for determinism
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
+
 
 # First checking if GPU is available
 train_on_gpu=torch.cuda.is_available()
@@ -78,15 +77,17 @@ if(train_on_gpu):
 else:
     print('No GPU available, training on CPU.')
        
-DEVICE = torch.device('cuda' if train_on_gpu else 'cpu') 
-
+DEVICE = torch.device('cuda' if train_on_gpu else 'cpu')
 
 torchaudio.set_audio_backend("soundfile")
 print("TorchAudio backend used:\t{}".format(torchaudio.get_audio_backend()))
 
 SAMPLE_RATE = 48000
 N_FFT = (SAMPLE_RATE * 64) // 1000 
-HOP_LENGTH = (SAMPLE_RATE * 16) // 1000
+HOP_LENGTH = (SAMPLE_RATE * 16) // 1000 
+
+
+
 
 class SpeechDataset(Dataset):
     """
@@ -133,16 +134,45 @@ class SpeechDataset(Dataset):
         
         return x_noisy_stft, x_clean_stft
         
-    def _prepare_sample(self, waveform):
+    def _prepare_sample(self, waveform, save_dir="Samples/Sample_Test_Input"):
         waveform = waveform.numpy()
         current_len = waveform.shape[1]
-        
-        output = np.zeros((1, self.max_len), dtype='float32')
-        output[0, -current_len:] = waveform[0, :self.max_len]
-        output = torch.from_numpy(output)
-        
-        return output
 
+    # Initialize a zero-padded array
+        output = np.zeros((1, self.max_len), dtype='float32')
+
+        if current_len > self.max_len:
+        # Save the remaining signal instead of discarding
+            remaining_signal = waveform[:, self.max_len:]
+
+        # Ensure save directory exists
+            os.makedirs(save_dir, exist_ok=True)
+
+        # Always save as "remaining_part.wav"
+            remaining_filename = os.path.join(save_dir, "!!remaining_part.wav")
+
+        # Convert NumPy array back to Torch tensor before saving
+        # Ensure the signal is 2D (add channel dimension if needed)
+            remaining_signal_tensor = torch.from_numpy(remaining_signal)
+
+            if remaining_signal_tensor.ndimension() == 1:
+            # If the tensor is 1D, add a channel dimension (for mono)
+                remaining_signal_tensor = remaining_signal_tensor.unsqueeze(0)
+
+        # Save the remaining part of the audio
+            torchaudio.save(remaining_filename, remaining_signal_tensor, 48000)
+
+        # Keep only the first `max_len` part in the output
+            waveform = waveform[:, :self.max_len]
+
+    # Copy the trimmed/padded waveform into the output array
+        output[0, -current_len:] = waveform[0, :self.max_len]
+
+    # Convert back to tensor
+        output = torch.from_numpy(output)
+
+        return output
+    
 
 
 train_input_files = sorted(list(TRAIN_INPUT_DIR.rglob('*.wav')))
@@ -151,14 +181,22 @@ train_target_files = sorted(list(TRAIN_TARGET_DIR.rglob('*.wav')))
 test_noisy_files = sorted(list(TEST_NOISY_DIR.rglob('*.wav')))
 test_clean_files = sorted(list(TEST_CLEAN_DIR.rglob('*.wav')))
 
-# print("No. of Training files:",len(train_input_files))
-# print("No. of Testing files:",len(test_noisy_files))
+
+
+
 
 test_dataset = SpeechDataset(test_noisy_files, test_clean_files, N_FFT, HOP_LENGTH)
 train_dataset = SpeechDataset(train_input_files, train_target_files, N_FFT, HOP_LENGTH)
 
+
 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
 train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+
+# For testing purpose
+test_loader_single_unshuffled = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+
+
 
 def test_set_metrics(test_loader, model):
     metric_names = ["CSIG","CBAK","COVL","PESQ","SSNR","STOI"]
@@ -182,6 +220,8 @@ def test_set_metrics(test_loader, model):
         metrics_dict[metric_names[i]] ={'mean': np.mean(overall_metrics[i]), 'std_dev': np.std(overall_metrics[i])} 
     
     return metrics_dict
+
+
 
 class CConv2d(nn.Module):
     """
@@ -222,6 +262,7 @@ class CConv2d(nn.Module):
         
         output = torch.stack([c_real, c_im], dim=-1)
         return output
+    
 
 
 class CConvTranspose2d(nn.Module):
@@ -268,6 +309,9 @@ class CConvTranspose2d(nn.Module):
         
         output = torch.stack([ct_real, ct_im], dim=-1)
         return output
+    
+
+
 
 class CBatchNorm2d(nn.Module):
     """
@@ -298,6 +342,7 @@ class CBatchNorm2d(nn.Module):
         return output
     
 
+
 class Encoder(nn.Module):
     """
     Class of upsample block
@@ -325,6 +370,9 @@ class Encoder(nn.Module):
         acted = self.leaky_relu(normed)
         
         return acted
+    
+
+
 
 
 class Decoder(nn.Module):
@@ -364,6 +412,237 @@ class Decoder(nn.Module):
             output = m_phase * m_mag
             
         return output
+    
+
+
+from pesq import pesq
+from scipy import interpolate
+
+def resample(original, old_rate, new_rate):
+    if old_rate != new_rate:
+        duration = original.shape[0] / old_rate
+        time_old  = np.linspace(0, duration, original.shape[0])
+        time_new  = np.linspace(0, duration, int(original.shape[0] * new_rate / old_rate))
+        interpolator = interpolate.interp1d(time_old, original.T)
+        new_audio = interpolator(time_new).T
+        return new_audio
+    else:
+        return original
+
+
+def wsdr_fn(x_, y_pred_, y_true_, eps=1e-8):
+    # to time-domain waveform
+    y_true_ = torch.squeeze(y_true_, 1)
+    y_true = torch.istft(y_true_, n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True)
+    x_ = torch.squeeze(x_, 1)
+    x = torch.istft(x_, n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True)
+
+    y_pred = y_pred_.flatten(1)
+    y_true = y_true.flatten(1)
+    x = x.flatten(1)
+
+
+    def sdr_fn(true, pred, eps=1e-8):
+        num = torch.sum(true * pred, dim=1)
+        den = torch.norm(true, p=2, dim=1) * torch.norm(pred, p=2, dim=1)
+        return -(num / (den + eps))
+
+    # true and estimated noise
+    z_true = x - y_true
+    z_pred = x - y_pred
+
+    a = torch.sum(y_true**2, dim=1) / (torch.sum(y_true**2, dim=1) + torch.sum(z_true**2, dim=1) + eps)
+    wSDR = a * sdr_fn(y_true, y_pred) + (1 - a) * sdr_fn(z_true, z_pred)
+    return torch.mean(wSDR)
+
+wonky_samples = []
+
+def getMetricsonLoader(loader, net, use_net=True):
+    net.eval()
+    # Original test metrics
+    scale_factor = 32768
+    # metric_names = ["CSIG","CBAK","COVL","PESQ","SSNR","STOI","SNR "]
+    metric_names = ["PESQ-WB","PESQ-NB","SNR","SSNR","STOI"]
+    overall_metrics = [[] for i in range(5)]
+    for i, data in enumerate(loader):
+        if (i+1)%10==0:
+            end_str = "\n"
+        else:
+            end_str = ","
+        #print(i,end=end_str)
+        if i in wonky_samples:
+            print("Something's up with this sample. Passing...")
+        else:
+            noisy = data[0]
+            clean = data[1]
+            if use_net: # Forward of net returns the istft version
+                x_est = net(noisy.to(DEVICE), is_istft=True)
+                x_est_np = x_est.view(-1).detach().cpu().numpy()
+            else:
+                x_est_np = torch.istft(torch.squeeze(noisy, 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
+            x_clean_np = torch.istft(torch.squeeze(clean, 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
+            
+        
+            metrics = AudioMetrics2(x_clean_np, x_est_np, 48000)
+            
+            ref_wb = resample(x_clean_np, 48000, 16000)
+            deg_wb = resample(x_est_np, 48000, 16000)
+            pesq_wb = pesq(16000, ref_wb, deg_wb, 'wb')
+            
+            ref_nb = resample(x_clean_np, 48000, 8000)
+            deg_nb = resample(x_est_np, 48000, 8000)
+            pesq_nb = pesq(8000, ref_nb, deg_nb, 'nb')
+
+            #print(new_scores)
+            #print(metrics.PESQ, metrics.STOI)
+
+            overall_metrics[0].append(pesq_wb)
+            overall_metrics[1].append(pesq_nb)
+            overall_metrics[2].append(metrics.SNR)
+            overall_metrics[3].append(metrics.SSNR)
+            overall_metrics[4].append(metrics.STOI)
+    print()
+    print("Sample metrics computed")
+    results = {}
+    for i in range(5):
+        temp = {}
+        temp["Mean"] =  np.mean(overall_metrics[i])
+        temp["STD"]  =  np.std(overall_metrics[i])
+        temp["Min"]  =  min(overall_metrics[i])
+        temp["Max"]  =  max(overall_metrics[i])
+        results[metric_names[i]] = temp
+    print("Averages computed")
+    if use_net:
+        addon = "(cleaned by model)"
+    else:
+        addon = "(pre denoising)"
+    print("Metrics on test data",addon)
+    for i in range(5):
+        print("{} : {:.3f}+/-{:.3f}".format(metric_names[i], np.mean(overall_metrics[i]), np.std(overall_metrics[i])))
+    return results
+
+
+
+
+def train_epoch(net, train_loader, loss_fn, optimizer):
+    net.train()
+    train_ep_loss = 0.
+    counter = 0
+    for noisy_x, clean_x in train_loader:
+
+        noisy_x, clean_x = noisy_x.to(DEVICE), clean_x.to(DEVICE)
+
+        # zero  gradients
+        net.zero_grad()
+
+        # get the output from the model
+        pred_x = net(noisy_x)
+
+        # calculate loss
+        loss = loss_fn(noisy_x, pred_x, clean_x)
+        loss.backward()
+        optimizer.step()
+
+        train_ep_loss += loss.item() 
+        counter += 1
+
+    train_ep_loss /= counter
+
+    # clear cache
+    gc.collect()
+    torch.cuda.empty_cache()
+    return train_ep_loss
+
+
+def test_epoch(net, test_loader, loss_fn, use_net=True):
+    net.eval()
+    test_ep_loss = 0.
+    counter = 0.
+    '''
+    for noisy_x, clean_x in test_loader:
+        # get the output from the model
+        noisy_x, clean_x = noisy_x.to(DEVICE), clean_x.to(DEVICE)
+        pred_x = net(noisy_x)
+
+        # calculate loss
+        loss = loss_fn(noisy_x, pred_x, clean_x)
+        # Calc the metrics here
+        test_ep_loss += loss.item() 
+        
+        counter += 1
+
+    test_ep_loss /= counter
+    '''
+    
+    #print("Actual compute done...testing now")
+    
+    testmet = getMetricsonLoader(test_loader,net,use_net)
+
+    # clear cache
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    return test_ep_loss, testmet
+
+
+
+def train(net, train_loader, test_loader, loss_fn, optimizer, scheduler, epochs):
+    
+    train_losses = []
+    test_losses = []
+
+    for e in tqdm(range(epochs)):
+
+        # first evaluating for comparison
+        
+        if e == 0 and training_type=="Noise2Clean":
+            print("Pre-training evaluation")
+            #with torch.no_grad():
+            #    test_loss,testmet = test_epoch(net, test_loader, loss_fn,use_net=False)
+            #print("Had to load model.. checking if deets match")
+            testmet = getMetricsonLoader(test_loader,net,False)    # again, modified cuz im loading
+            #test_losses.append(test_loss)
+            #print("Loss before training:{:.6f}".format(test_loss))
+        
+            with open(basepath + "/results.txt","w+") as f:
+                f.write("Initial : \n")
+                f.write(str(testmet))
+                f.write("\n")
+        
+        
+        train_loss = train_epoch(net, train_loader, loss_fn, optimizer)
+        test_loss = 0
+        scheduler.step()
+        print("Saving model....")
+        
+        with torch.no_grad():
+            test_loss, testmet = test_epoch(net, test_loader, loss_fn,use_net=True)
+
+        train_losses.append(train_loss)
+        test_losses.append(test_loss)
+        
+        #print("skipping testing cuz peak autism idk")
+        
+        with open(basepath + "/results.txt","a") as f:
+            f.write("Epoch :"+str(e+1) + "\n" + str(testmet))
+            f.write("\n")
+        
+        print("OPed to txt")
+        
+        torch.save(net.state_dict(), basepath +'/Weights/dc20_model_'+str(e+1)+'.pth')
+        torch.save(optimizer.state_dict(), basepath+'/Weights/dc20_opt_'+str(e+1)+'.pth')
+        
+        print("Models saved")
+
+        # clear cache
+        torch.cuda.empty_cache()
+        gc.collect()
+
+        #print("Epoch: {}/{}...".format(e+1, epochs),
+        #              "Loss: {:.6f}...".format(train_loss),
+        #              "Test Loss: {:.6f}".format(test_loss))
+    return train_loss, test_loss
+
 
 class DCUnet20(nn.Module):
     """
@@ -539,6 +818,9 @@ class DCUnet20(nn.Module):
                                        (0,0)]
         else:
             raise ValueError("Unknown model depth : {}".format(model_depth))
+        
+
+
 
 
 model_weights_path = "Pretrained_Weights/Noise2Noise/white.pth"
@@ -550,37 +832,68 @@ checkpoint = torch.load(model_weights_path,
                         map_location=torch.device('cpu')
                        )
 
-test_noisy_files = sorted(list(Path("Samples/Sample_Test_Input").rglob('*.wav')))
+
+# test_noisy_files = sorted(list(Path("Samples/Sample_Test_Input").rglob('*.wav')))
 test_clean_files = sorted(list(Path("Samples/Sample_Test_Target").rglob('*.wav')))
 
-test_dataset = SpeechDataset(test_noisy_files, test_clean_files, N_FFT, HOP_LENGTH)
+# test_dataset = SpeechDataset(test_noisy_files, test_clean_files, N_FFT, HOP_LENGTH)
 
 # For testing purpose
-test_loader_single_unshuffled = DataLoader(test_dataset, batch_size=1, shuffle=False)
+# test_loader_single_unshuffled = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+
 
 dcunet20.load_state_dict(checkpoint)
 
-index = 1
+import glob
+input_audio, sr = torchaudio.load(glob.glob("Samples/Sample_Test_Input/*.wav")[0])
+torchaudio.save("Samples/noisy.wav", input_audio, 48000, bits_per_sample=16)
 
+
+outputensor=[]
 dcunet20.eval()
-test_loader_single_unshuffled_iter = iter(test_loader_single_unshuffled)
+modelprocessinglength=165000/SAMPLE_RATE
+lengthofinput=input_audio.size(1)/sr
+noofloop=np.ceil(lengthofinput/modelprocessinglength)
+for _ in range(int(noofloop)):
+    test_noisy_files = sorted(list(Path("Samples/Sample_Test_Input").rglob('*.wav')))
+    test_dataset = SpeechDataset(test_noisy_files, test_clean_files, N_FFT, HOP_LENGTH)
+    test_loader_single_unshuffled = DataLoader(test_dataset, batch_size=1, shuffle=False)
+    
+    index=0
+    test_loader_single_unshuffled_iter = iter(test_loader_single_unshuffled)
 
-x_n, x_c = next(test_loader_single_unshuffled_iter)
-for _ in range(index):
     x_n, x_c = next(test_loader_single_unshuffled_iter)
+    for _ in range(index):
+        x_n, x_c = next(test_loader_single_unshuffled_iter)
 
-x_est = dcunet20(x_n, is_istft=True)
-
-x_est_np = x_est[0].view(-1).detach().cpu().numpy()
-x_c_np = torch.istft(torch.squeeze(x_c[0], 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
-x_n_np = torch.istft(torch.squeeze(x_n[0], 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
-
-
-noise_addition_utils.save_audio_file(np_array=x_est_np,file_path=Path("Samples/denoised.wav"), sample_rate=SAMPLE_RATE, bit_precision=16)
-noise_addition_utils.save_audio_file(np_array=x_c_np,file_path=Path("Samples/clean.wav"), sample_rate=SAMPLE_RATE, bit_precision=16)
-noise_addition_utils.save_audio_file(np_array=x_n_np,file_path=Path("Samples/noisy.wav"), sample_rate=SAMPLE_RATE, bit_precision=16)
-
-
-
+    x_est = dcunet20(x_n, is_istft=True)
+    
+    x_est_np = x_est[0].view(-1).detach().cpu().numpy()
+    x_c_np = torch.istft(torch.squeeze(x_c[0], 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
+    x_n_np = torch.istft(torch.squeeze(x_n[0], 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
+    
+    torch_tensor = torch.from_numpy(x_est_np.astype(np.float32))
+    outputensor.append(torch_tensor)
+    
 
 
+Final_Outputaudio = torch.cat(outputensor, dim=0)    
+
+# Reshape to 2D tensor: (1, num_samples)
+Final_Outputaudio = Final_Outputaudio.unsqueeze(0)
+
+# Save the audio as a 2D tensor (1 channel)
+torchaudio.save("Samples/denoised.wav", Final_Outputaudio, 48000, bits_per_sample=16)
+
+
+
+
+#Clearing input folder for next audio
+# Set the folder path
+folder_path = "Samples/Sample_Test_Input"
+
+# Remove all .wav files in the folder
+for file in glob.glob(os.path.join(folder_path, "*.wav")):
+    os.remove(file)
+    
