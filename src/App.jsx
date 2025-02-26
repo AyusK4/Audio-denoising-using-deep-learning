@@ -6,6 +6,8 @@ function App() {
   const [recording, setRecording] = useState(false);
   const [recordedAudio, setRecordedAudio] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const intervalRef = useRef(null);
@@ -13,8 +15,8 @@ function App() {
   // Handle file selection
   const handleFileChange = (event) => {
     const file = event.target.files[0];
-    console.log(file);
     if (file) {
+      console.log(file);
       setAudioFile(file);
       setRecordedAudio(URL.createObjectURL(file));
     }
@@ -23,6 +25,8 @@ function App() {
   // Start recording
   const startRecording = async () => {
     setRecordedAudio(null);
+    setError(false);
+    setLoading(false);
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaRecorderRef.current = new MediaRecorder(stream);
     audioChunksRef.current = [];
@@ -57,15 +61,24 @@ function App() {
   // Send audio to backend
   const handleUpload = async () => {
     if (!audioFile) return alert("No audio file selected!");
+    setLoading(true);
+    setError(false);
     const formData = new FormData();
     formData.append("audio", audioFile);
-
-    const response = await fetch("http://localhost:5000/denoise", {
-      method: "POST",
-      body: formData,
-    });
-    const blob = await response.blob();
-    setDenoisedAudio(URL.createObjectURL(blob));
+    try {
+      const response = await fetch("http://localhost:5000/denoise", {
+        method: "POST",
+        body: formData,
+      });
+      const blob = await response.blob();
+      setDenoisedAudio(URL.createObjectURL(blob));
+      setLoading(false);
+      setError(false);
+    } catch (error) {
+      console.log(error);
+      setLoading(false);
+      setError(true);
+    }
   };
 
   return (
@@ -89,6 +102,7 @@ function App() {
 
           <button
             onClick={handleUpload}
+            disabled={loading}
             className="bg-green-500 text-white p-2 rounded"
           >
             Upload & Denoise
@@ -105,7 +119,8 @@ function App() {
             </audio>
           </div>
         )}
-
+        {loading && <div>Loading ...</div>}
+        {error && <div className="text-red-700">Error: Try again later</div>}
         {denoisedAudio && (
           <div>
             <p className="text-gray-700">Denoised Audio:</p>
