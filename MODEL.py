@@ -9,8 +9,6 @@ if noise_class == "white":
 
     if training_type == "Noise2Noise":
         TRAIN_TARGET_DIR = Path('Datasets/WhiteNoise_Train_Output')
-    elif training_type == "Noise2Clean":
-        TRAIN_TARGET_DIR = Path('Datasets/clean_trainset_28spk_wav')
     else:
         raise Exception("Enter valid training type")
 
@@ -22,8 +20,6 @@ else:
 
     if training_type == "Noise2Noise":
         TRAIN_TARGET_DIR = Path('Datasets/US_Class'+str(noise_class)+'_Train_Output')
-    elif training_type == "Noise2Clean":
-        TRAIN_TARGET_DIR = Path('Datasets/clean_trainset_28spk_wav')
     else:
         raise Exception("Enter valid training type")
 
@@ -72,15 +68,15 @@ torch.backends.cudnn.benchmark = False
 # First checking if GPU is available
 train_on_gpu=torch.cuda.is_available()
 
-if(train_on_gpu):
-    print('Training on GPU.')
-else:
-    print('No GPU available, training on CPU.')
+# if(train_on_gpu):
+#     print('Training on GPU.')
+# else:
+#     print('No GPU available, training on CPU.')
        
 DEVICE = torch.device('cuda' if train_on_gpu else 'cpu')
 
 torchaudio.set_audio_backend("soundfile")
-print("TorchAudio backend used:\t{}".format(torchaudio.get_audio_backend()))
+# print("TorchAudio backend used:\t{}".format(torchaudio.get_audio_backend()))
 
 SAMPLE_RATE = 48000
 N_FFT = (SAMPLE_RATE * 64) // 1000 
@@ -198,28 +194,28 @@ test_loader_single_unshuffled = DataLoader(test_dataset, batch_size=1, shuffle=F
 
 
 
-def test_set_metrics(test_loader, model):
-    metric_names = ["CSIG","CBAK","COVL","PESQ","SSNR","STOI"]
-    overall_metrics = [[] for i in range(len(metric_names))]
+# def test_set_metrics(test_loader, model):
+#     metric_names = ["CSIG","CBAK","COVL","PESQ","SSNR","STOI"]
+#     overall_metrics = [[] for i in range(len(metric_names))]
     
-    for i,(noisy,clean) in enumerate(test_loader):
-        x_est = model(noisy.to(DEVICE), is_istft=True)
-        x_est_np = x_est[0].view(-1).detach().cpu().numpy()
-        x_c_np = torch.istft(torch.squeeze(clean[0], 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
-        metrics = AudioMetrics(x_c_np, x_est_np, SAMPLE_RATE)
+#     for i,(noisy,clean) in enumerate(test_loader):
+#         x_est = model(noisy.to(DEVICE), is_istft=True)
+#         x_est_np = x_est[0].view(-1).detach().cpu().numpy()
+#         x_c_np = torch.istft(torch.squeeze(clean[0], 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
+#         metrics = AudioMetrics(x_c_np, x_est_np, SAMPLE_RATE)
         
-        overall_metrics[0].append(metrics.CSIG)
-        overall_metrics[1].append(metrics.CBAK)
-        overall_metrics[2].append(metrics.COVL)
-        overall_metrics[3].append(metrics.PESQ)
-        overall_metrics[4].append(metrics.SSNR)
-        overall_metrics[5].append(metrics.STOI)
+#         overall_metrics[0].append(metrics.CSIG)
+#         overall_metrics[1].append(metrics.CBAK)
+#         overall_metrics[2].append(metrics.COVL)
+#         overall_metrics[3].append(metrics.PESQ)
+#         overall_metrics[4].append(metrics.SSNR)
+#         overall_metrics[5].append(metrics.STOI)
     
-    metrics_dict = dict()
-    for i in range(len(metric_names)):
-        metrics_dict[metric_names[i]] ={'mean': np.mean(overall_metrics[i]), 'std_dev': np.std(overall_metrics[i])} 
+#     metrics_dict = dict()
+#     for i in range(len(metric_names)):
+#         metrics_dict[metric_names[i]] ={'mean': np.mean(overall_metrics[i]), 'std_dev': np.std(overall_metrics[i])} 
     
-    return metrics_dict
+#     return metrics_dict
 
 
 
@@ -415,233 +411,233 @@ class Decoder(nn.Module):
     
 
 
-from pesq import pesq
-from scipy import interpolate
+# from pesq import pesq
+# from scipy import interpolate
 
-def resample(original, old_rate, new_rate):
-    if old_rate != new_rate:
-        duration = original.shape[0] / old_rate
-        time_old  = np.linspace(0, duration, original.shape[0])
-        time_new  = np.linspace(0, duration, int(original.shape[0] * new_rate / old_rate))
-        interpolator = interpolate.interp1d(time_old, original.T)
-        new_audio = interpolator(time_new).T
-        return new_audio
-    else:
-        return original
-
-
-def wsdr_fn(x_, y_pred_, y_true_, eps=1e-8):
-    # to time-domain waveform
-    y_true_ = torch.squeeze(y_true_, 1)
-    y_true = torch.istft(y_true_, n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True)
-    x_ = torch.squeeze(x_, 1)
-    x = torch.istft(x_, n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True)
-
-    y_pred = y_pred_.flatten(1)
-    y_true = y_true.flatten(1)
-    x = x.flatten(1)
+# def resample(original, old_rate, new_rate):
+#     if old_rate != new_rate:
+#         duration = original.shape[0] / old_rate
+#         time_old  = np.linspace(0, duration, original.shape[0])
+#         time_new  = np.linspace(0, duration, int(original.shape[0] * new_rate / old_rate))
+#         interpolator = interpolate.interp1d(time_old, original.T)
+#         new_audio = interpolator(time_new).T
+#         return new_audio
+#     else:
+#         return original
 
 
-    def sdr_fn(true, pred, eps=1e-8):
-        num = torch.sum(true * pred, dim=1)
-        den = torch.norm(true, p=2, dim=1) * torch.norm(pred, p=2, dim=1)
-        return -(num / (den + eps))
+# def wsdr_fn(x_, y_pred_, y_true_, eps=1e-8):
+#     # to time-domain waveform
+#     y_true_ = torch.squeeze(y_true_, 1)
+#     y_true = torch.istft(y_true_, n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True)
+#     x_ = torch.squeeze(x_, 1)
+#     x = torch.istft(x_, n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True)
 
-    # true and estimated noise
-    z_true = x - y_true
-    z_pred = x - y_pred
+#     y_pred = y_pred_.flatten(1)
+#     y_true = y_true.flatten(1)
+#     x = x.flatten(1)
 
-    a = torch.sum(y_true**2, dim=1) / (torch.sum(y_true**2, dim=1) + torch.sum(z_true**2, dim=1) + eps)
-    wSDR = a * sdr_fn(y_true, y_pred) + (1 - a) * sdr_fn(z_true, z_pred)
-    return torch.mean(wSDR)
 
-wonky_samples = []
+#     def sdr_fn(true, pred, eps=1e-8):
+#         num = torch.sum(true * pred, dim=1)
+#         den = torch.norm(true, p=2, dim=1) * torch.norm(pred, p=2, dim=1)
+#         return -(num / (den + eps))
 
-def getMetricsonLoader(loader, net, use_net=True):
-    net.eval()
-    # Original test metrics
-    scale_factor = 32768
-    # metric_names = ["CSIG","CBAK","COVL","PESQ","SSNR","STOI","SNR "]
-    metric_names = ["PESQ-WB","PESQ-NB","SNR","SSNR","STOI"]
-    overall_metrics = [[] for i in range(5)]
-    for i, data in enumerate(loader):
-        if (i+1)%10==0:
-            end_str = "\n"
-        else:
-            end_str = ","
-        #print(i,end=end_str)
-        if i in wonky_samples:
-            print("Something's up with this sample. Passing...")
-        else:
-            noisy = data[0]
-            clean = data[1]
-            if use_net: # Forward of net returns the istft version
-                x_est = net(noisy.to(DEVICE), is_istft=True)
-                x_est_np = x_est.view(-1).detach().cpu().numpy()
-            else:
-                x_est_np = torch.istft(torch.squeeze(noisy, 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
-            x_clean_np = torch.istft(torch.squeeze(clean, 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
+#     # true and estimated noise
+#     z_true = x - y_true
+#     z_pred = x - y_pred
+
+#     a = torch.sum(y_true**2, dim=1) / (torch.sum(y_true**2, dim=1) + torch.sum(z_true**2, dim=1) + eps)
+#     wSDR = a * sdr_fn(y_true, y_pred) + (1 - a) * sdr_fn(z_true, z_pred)
+#     return torch.mean(wSDR)
+
+# wonky_samples = []
+
+# def getMetricsonLoader(loader, net, use_net=True):
+#     net.eval()
+#     # Original test metrics
+#     scale_factor = 32768
+#     # metric_names = ["CSIG","CBAK","COVL","PESQ","SSNR","STOI","SNR "]
+#     metric_names = ["PESQ-WB","PESQ-NB","SNR","SSNR","STOI"]
+#     overall_metrics = [[] for i in range(5)]
+#     for i, data in enumerate(loader):
+#         if (i+1)%10==0:
+#             end_str = "\n"
+#         else:
+#             end_str = ","
+#         #print(i,end=end_str)
+#         if i in wonky_samples:
+#             print("Something's up with this sample. Passing...")
+#         else:
+#             noisy = data[0]
+#             clean = data[1]
+#             if use_net: # Forward of net returns the istft version
+#                 x_est = net(noisy.to(DEVICE), is_istft=True)
+#                 x_est_np = x_est.view(-1).detach().cpu().numpy()
+#             else:
+#                 x_est_np = torch.istft(torch.squeeze(noisy, 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
+#             x_clean_np = torch.istft(torch.squeeze(clean, 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
             
         
-            metrics = AudioMetrics2(x_clean_np, x_est_np, 48000)
+#             metrics = AudioMetrics2(x_clean_np, x_est_np, 48000)
             
-            ref_wb = resample(x_clean_np, 48000, 16000)
-            deg_wb = resample(x_est_np, 48000, 16000)
-            pesq_wb = pesq(16000, ref_wb, deg_wb, 'wb')
+#             ref_wb = resample(x_clean_np, 48000, 16000)
+#             deg_wb = resample(x_est_np, 48000, 16000)
+#             pesq_wb = pesq(16000, ref_wb, deg_wb, 'wb')
             
-            ref_nb = resample(x_clean_np, 48000, 8000)
-            deg_nb = resample(x_est_np, 48000, 8000)
-            pesq_nb = pesq(8000, ref_nb, deg_nb, 'nb')
+#             ref_nb = resample(x_clean_np, 48000, 8000)
+#             deg_nb = resample(x_est_np, 48000, 8000)
+#             pesq_nb = pesq(8000, ref_nb, deg_nb, 'nb')
 
-            #print(new_scores)
-            #print(metrics.PESQ, metrics.STOI)
+#             #print(new_scores)
+#             #print(metrics.PESQ, metrics.STOI)
 
-            overall_metrics[0].append(pesq_wb)
-            overall_metrics[1].append(pesq_nb)
-            overall_metrics[2].append(metrics.SNR)
-            overall_metrics[3].append(metrics.SSNR)
-            overall_metrics[4].append(metrics.STOI)
-    print()
-    print("Sample metrics computed")
-    results = {}
-    for i in range(5):
-        temp = {}
-        temp["Mean"] =  np.mean(overall_metrics[i])
-        temp["STD"]  =  np.std(overall_metrics[i])
-        temp["Min"]  =  min(overall_metrics[i])
-        temp["Max"]  =  max(overall_metrics[i])
-        results[metric_names[i]] = temp
-    print("Averages computed")
-    if use_net:
-        addon = "(cleaned by model)"
-    else:
-        addon = "(pre denoising)"
-    print("Metrics on test data",addon)
-    for i in range(5):
-        print("{} : {:.3f}+/-{:.3f}".format(metric_names[i], np.mean(overall_metrics[i]), np.std(overall_metrics[i])))
-    return results
-
-
+#             overall_metrics[0].append(pesq_wb)
+#             overall_metrics[1].append(pesq_nb)
+#             overall_metrics[2].append(metrics.SNR)
+#             overall_metrics[3].append(metrics.SSNR)
+#             overall_metrics[4].append(metrics.STOI)
+#     print()
+#     print("Sample metrics computed")
+#     results = {}
+#     for i in range(5):
+#         temp = {}
+#         temp["Mean"] =  np.mean(overall_metrics[i])
+#         temp["STD"]  =  np.std(overall_metrics[i])
+#         temp["Min"]  =  min(overall_metrics[i])
+#         temp["Max"]  =  max(overall_metrics[i])
+#         results[metric_names[i]] = temp
+#     print("Averages computed")
+#     if use_net:
+#         addon = "(cleaned by model)"
+#     else:
+#         addon = "(pre denoising)"
+#     print("Metrics on test data",addon)
+#     for i in range(5):
+#         print("{} : {:.3f}+/-{:.3f}".format(metric_names[i], np.mean(overall_metrics[i]), np.std(overall_metrics[i])))
+#     return results
 
 
-def train_epoch(net, train_loader, loss_fn, optimizer):
-    net.train()
-    train_ep_loss = 0.
-    counter = 0
-    for noisy_x, clean_x in train_loader:
-
-        noisy_x, clean_x = noisy_x.to(DEVICE), clean_x.to(DEVICE)
-
-        # zero  gradients
-        net.zero_grad()
-
-        # get the output from the model
-        pred_x = net(noisy_x)
-
-        # calculate loss
-        loss = loss_fn(noisy_x, pred_x, clean_x)
-        loss.backward()
-        optimizer.step()
-
-        train_ep_loss += loss.item() 
-        counter += 1
-
-    train_ep_loss /= counter
-
-    # clear cache
-    gc.collect()
-    torch.cuda.empty_cache()
-    return train_ep_loss
 
 
-def test_epoch(net, test_loader, loss_fn, use_net=True):
-    net.eval()
-    test_ep_loss = 0.
-    counter = 0.
-    '''
-    for noisy_x, clean_x in test_loader:
-        # get the output from the model
-        noisy_x, clean_x = noisy_x.to(DEVICE), clean_x.to(DEVICE)
-        pred_x = net(noisy_x)
+# def train_epoch(net, train_loader, loss_fn, optimizer):
+#     net.train()
+#     train_ep_loss = 0.
+#     counter = 0
+#     for noisy_x, clean_x in train_loader:
 
-        # calculate loss
-        loss = loss_fn(noisy_x, pred_x, clean_x)
-        # Calc the metrics here
-        test_ep_loss += loss.item() 
+#         noisy_x, clean_x = noisy_x.to(DEVICE), clean_x.to(DEVICE)
+
+#         # zero  gradients
+#         net.zero_grad()
+
+#         # get the output from the model
+#         pred_x = net(noisy_x)
+
+#         # calculate loss
+#         loss = loss_fn(noisy_x, pred_x, clean_x)
+#         loss.backward()
+#         optimizer.step()
+
+#         train_ep_loss += loss.item() 
+#         counter += 1
+
+#     train_ep_loss /= counter
+
+#     # clear cache
+#     gc.collect()
+#     torch.cuda.empty_cache()
+#     return train_ep_loss
+
+
+# def test_epoch(net, test_loader, loss_fn, use_net=True):
+#     net.eval()
+#     test_ep_loss = 0.
+#     counter = 0.
+#     '''
+#     for noisy_x, clean_x in test_loader:
+#         # get the output from the model
+#         noisy_x, clean_x = noisy_x.to(DEVICE), clean_x.to(DEVICE)
+#         pred_x = net(noisy_x)
+
+#         # calculate loss
+#         loss = loss_fn(noisy_x, pred_x, clean_x)
+#         # Calc the metrics here
+#         test_ep_loss += loss.item() 
         
-        counter += 1
+#         counter += 1
 
-    test_ep_loss /= counter
-    '''
+#     test_ep_loss /= counter
+#     '''
     
-    #print("Actual compute done...testing now")
+#     #print("Actual compute done...testing now")
     
-    testmet = getMetricsonLoader(test_loader,net,use_net)
+#     testmet = getMetricsonLoader(test_loader,net,use_net)
 
-    # clear cache
-    gc.collect()
-    torch.cuda.empty_cache()
+#     # clear cache
+#     gc.collect()
+#     torch.cuda.empty_cache()
     
-    return test_ep_loss, testmet
+#     return test_ep_loss, testmet
 
 
 
-def train(net, train_loader, test_loader, loss_fn, optimizer, scheduler, epochs):
+# def train(net, train_loader, test_loader, loss_fn, optimizer, scheduler, epochs):
     
-    train_losses = []
-    test_losses = []
+#     train_losses = []
+#     test_losses = []
 
-    for e in tqdm(range(epochs)):
+#     for e in tqdm(range(epochs)):
 
-        # first evaluating for comparison
+#         # first evaluating for comparison
         
-        if e == 0 and training_type=="Noise2Clean":
-            print("Pre-training evaluation")
-            #with torch.no_grad():
-            #    test_loss,testmet = test_epoch(net, test_loader, loss_fn,use_net=False)
-            #print("Had to load model.. checking if deets match")
-            testmet = getMetricsonLoader(test_loader,net,False)    # again, modified cuz im loading
-            #test_losses.append(test_loss)
-            #print("Loss before training:{:.6f}".format(test_loss))
+#         if e == 0 and training_type=="Noise2Clean":
+#             print("Pre-training evaluation")
+#             #with torch.no_grad():
+#             #    test_loss,testmet = test_epoch(net, test_loader, loss_fn,use_net=False)
+#             #print("Had to load model.. checking if deets match")
+#             testmet = getMetricsonLoader(test_loader,net,False)    # again, modified cuz im loading
+#             #test_losses.append(test_loss)
+#             #print("Loss before training:{:.6f}".format(test_loss))
         
-            with open(basepath + "/results.txt","w+") as f:
-                f.write("Initial : \n")
-                f.write(str(testmet))
-                f.write("\n")
+#             with open(basepath + "/results.txt","w+") as f:
+#                 f.write("Initial : \n")
+#                 f.write(str(testmet))
+#                 f.write("\n")
         
         
-        train_loss = train_epoch(net, train_loader, loss_fn, optimizer)
-        test_loss = 0
-        scheduler.step()
-        print("Saving model....")
+#         train_loss = train_epoch(net, train_loader, loss_fn, optimizer)
+#         test_loss = 0
+#         scheduler.step()
+#         print("Saving model....")
         
-        with torch.no_grad():
-            test_loss, testmet = test_epoch(net, test_loader, loss_fn,use_net=True)
+#         with torch.no_grad():
+#             test_loss, testmet = test_epoch(net, test_loader, loss_fn,use_net=True)
 
-        train_losses.append(train_loss)
-        test_losses.append(test_loss)
+#         train_losses.append(train_loss)
+#         test_losses.append(test_loss)
         
-        #print("skipping testing cuz peak autism idk")
+#         #print("skipping testing cuz peak autism idk")
         
-        with open(basepath + "/results.txt","a") as f:
-            f.write("Epoch :"+str(e+1) + "\n" + str(testmet))
-            f.write("\n")
+#         with open(basepath + "/results.txt","a") as f:
+#             f.write("Epoch :"+str(e+1) + "\n" + str(testmet))
+#             f.write("\n")
         
-        print("OPed to txt")
+#         print("OPed to txt")
         
-        torch.save(net.state_dict(), basepath +'/Weights/dc20_model_'+str(e+1)+'.pth')
-        torch.save(optimizer.state_dict(), basepath+'/Weights/dc20_opt_'+str(e+1)+'.pth')
+#         torch.save(net.state_dict(), basepath +'/Weights/dc20_model_'+str(e+1)+'.pth')
+#         torch.save(optimizer.state_dict(), basepath+'/Weights/dc20_opt_'+str(e+1)+'.pth')
         
-        print("Models saved")
+#         print("Models saved")
 
-        # clear cache
-        torch.cuda.empty_cache()
-        gc.collect()
+#         # clear cache
+#         torch.cuda.empty_cache()
+#         gc.collect()
 
-        #print("Epoch: {}/{}...".format(e+1, epochs),
-        #              "Loss: {:.6f}...".format(train_loss),
-        #              "Test Loss: {:.6f}".format(test_loss))
-    return train_loss, test_loss
+#         #print("Epoch: {}/{}...".format(e+1, epochs),
+#         #              "Loss: {:.6f}...".format(train_loss),
+#         #              "Test Loss: {:.6f}".format(test_loss))
+#     return train_loss, test_loss
 
 
 class DCUnet20(nn.Module):
@@ -823,7 +819,7 @@ class DCUnet20(nn.Module):
 
 
 
-model_weights_path = "Pretrained_Weights/Noise2Noise/white.pth"
+model_weights_path = "Pretrained_Weights/Noise2Noise/mixed.pth"
 
 dcunet20 = DCUnet20(N_FFT, HOP_LENGTH).to(DEVICE)
 optimizer = torch.optim.Adam(dcunet20.parameters())
@@ -864,14 +860,10 @@ for _ in range(int(noofloop)):
     test_loader_single_unshuffled_iter = iter(test_loader_single_unshuffled)
 
     x_n, x_c = next(test_loader_single_unshuffled_iter)
-    for _ in range(index):
-        x_n, x_c = next(test_loader_single_unshuffled_iter)
-
+   
     x_est = dcunet20(x_n, is_istft=True)
     
     x_est_np = x_est[0].view(-1).detach().cpu().numpy()
-    x_c_np = torch.istft(torch.squeeze(x_c[0], 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
-    x_n_np = torch.istft(torch.squeeze(x_n[0], 1), n_fft=N_FFT, hop_length=HOP_LENGTH, normalized=True).view(-1).detach().cpu().numpy()
     
     torch_tensor = torch.from_numpy(x_est_np.astype(np.float32))
     outputensor.append(torch_tensor)
