@@ -1,8 +1,4 @@
-'''
-This file has all the required signal processing helper methods
-I have no idea what half of this stuff is but hey why reinvent the wheel
-Mostly taken from https://github.com/schmiph2/pysepm
-'''
+
 
 from scipy.linalg import solve_toeplitz,toeplitz
 from scipy import interpolate
@@ -58,9 +54,7 @@ def find_loc_peaks(slope,energy):
 @jit
 def lpcoeff(speech_frame, model_order):
     eps=np.finfo(np.float64).eps
-   # ----------------------------------------------------------
-   # (1) Compute Autocorrelation Lags
-   # ----------------------------------------------------------
+   
     winlength = max(speech_frame.shape)
     R = np.zeros((model_order+1,))
     for k in range(model_order+1):
@@ -70,11 +64,7 @@ def lpcoeff(speech_frame, model_order):
             R[k]=np.sum(speech_frame[0:-k]*speech_frame[k:])
         
      
-    #R=scipy.signal.correlate(speech_frame,speech_frame) 
-    #R=R[len(speech_frame)-1:len(speech_frame)+model_order]
-   # ----------------------------------------------------------
-   # (2) Levinson-Durbin
-   # ----------------------------------------------------------
+   
     a = np.ones((model_order,))
     a_past = np.ones((model_order,))
     rcoeff = np.zeros((model_order,))
