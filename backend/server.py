@@ -1,17 +1,19 @@
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
+from pathlib import Path
 import os
 import subprocess
 import sys
-import ffmpeg 
+import ffmpeg
 
 app = Flask(__name__)
 CORS(app)
 
-SAMPLES_FOLDER = "Samples"
-INPUT_FOLDER = os.path.join(SAMPLES_FOLDER, "Sample_Test_Input")
+BASE_DIR = Path(__file__).resolve().parent
+SAMPLES_FOLDER = BASE_DIR / "Samples"
+INPUT_FOLDER = SAMPLES_FOLDER / "Sample_Test_Input"
 OUTPUT_FOLDER = SAMPLES_FOLDER  # Output will be in the Samples folder
-os.makedirs(INPUT_FOLDER, exist_ok=True)
+INPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 def convert_to_wav(input_path, output_path):
     """ Convert any browser-recorded file (WebM/OGG) to WAV using ffmpeg. """
@@ -28,9 +30,9 @@ def denoise():
         return jsonify({"error": "No file provided"}), 400
 
     audio_file = request.files["audio"]
-    input_path = os.path.join(INPUT_FOLDER, audio_file.filename)
-    wav_path = os.path.join(INPUT_FOLDER, "converted_input.wav")  # Ensuring WAV format
-    output_path = os.path.join(OUTPUT_FOLDER, "denoised.wav")
+    input_path = INPUT_FOLDER / audio_file.filename
+    wav_path = INPUT_FOLDER / "converted_input.wav"  # Ensuring WAV format
+    output_path = OUTPUT_FOLDER / "denoised.wav"
 
     audio_file.save(input_path)
 
@@ -44,7 +46,7 @@ def denoise():
 
     # Run MODEL.py with the converted WAV file
     try:
-        subprocess.run([sys.executable, "MODEL.py"], check=True)
+        subprocess.run([sys.executable, "MODEL.py"], check=True, cwd=str(BASE_DIR))
     except subprocess.CalledProcessError as e:
         return jsonify({"error": f"Model processing failed: {e}"}), 500
 

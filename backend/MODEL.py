@@ -3,6 +3,10 @@ training_type =  "Noise2Noise"
 
 
 from pathlib import Path
+import os
+
+BASE_DIR = Path(__file__).resolve().parent
+os.chdir(BASE_DIR)
 
 if noise_class == "white": 
     TRAIN_INPUT_DIR = Path('Datasets/WhiteNoise_Train_Input')
@@ -26,7 +30,6 @@ else:
     TEST_NOISY_DIR = Path('Datasets/US_Class'+str(noise_class)+'_Test_Input')
     TEST_CLEAN_DIR = Path('Datasets/clean_testset_wav') 
 
-import os
 basepath = str(noise_class)+"_"+training_type
 os.makedirs(basepath,exist_ok=True)
 os.makedirs(basepath+"/Weights",exist_ok=True)
